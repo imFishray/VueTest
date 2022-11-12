@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聊天室</title>
+</head>
+<body>
+    <div>
+        <p>根據六角youtube教學，不過這一年firebase文件有一點點變動，增加了Web v9-modular寫法</p>
+        <div id="app">
+            <header>
+                <input type="text" v-model.trim="tempUserName" placeholder="🐢請輸入你的名字🐢">
+                <input type="text" v-model.trim="inputMsg" placeholder="請輸入訊息">
+                <button @click.enter="send">送出</button>
+            </header>
+            <div class="chartBox">
+                <div v-for="(item, key) in chartRoom" :key="key">
+                    <p>{{item.username}}</p>
+                    <p>
+                        <span>{{item.message}}</span>
+                        <span>{{item.time}}</span>
+                    </p>
+                </div>
+                <p>連線狀況：{{status? '連線中': '斷線'}}</p>
+            </div>
+        </div>
+        <p>
+            下一步驟：安全規則加入
+            <a href="https://firebase.google.com/docs/database/security/get-started" target="_blank">安全規則設定</a>
+        </p>
+    </div>
+<script src="https://unpkg.com/vue@next"></script>
+<script type="module">
+    // Import the functions you need from the SDKs you need
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.13.0/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.13.0/firebase-analytics.js";
+    // TODO: Add SDKs for Firebase products that you want to use
+    // https://firebase.google.com/docs/web/setup#available-libraries
+    import { getDatabase, ref, onValue, child, push, set } from "https://www.gstatic.com/firebasejs/9.13.0/firebase-database.js"
+
+    // Your web app's Firebase configuration
+    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+    const firebaseConfig = {
+        apiKey: "AIzaSyB1otzmT1lxBXndWOD66vGJ5VkxcbbF0K8",
+        authDomain: "chatroom-a5cfd.firebaseapp.com",
+        projectId: "chatroom-a5cfd",
+        storageBucket: "chatroom-a5cfd.appspot.com",
+        messagingSenderId: "731065234859",
+        appId: "1:731065234859:web:f072567e4aedf676758eee",
+        measurementId: "G-ZZ49P8VPV5",
+        databaseURL: "https://chatroom-a5cfd-default-rtdb.asia-southeast1.firebasedatabase.app/"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    
+    // Initialize Realtime Database and get a reference to the service
+    const database = getDatabase(app);
+
+    //產生連線
+    const startRef = ref(database, 'msg');
+
+    const App = {
+        data(){
+            return {
+                tempUserName: '',
+                inputMsg: '',
+                chartRoom: {},
+                status: false
+            }
+        },
+        methods: {
+            send(){
+                if(this.tempUserName === '' || this.inputMsg === "") return
+                //於msg之下創建一個key，並同時檢索密鑰hash key
+                //下面兩個寫法一樣
+                const PostKey = push(startRef).key
+                // const PostKey = push(child(ref(database), 'msg')).key
+
+                //寫入 PostKey及value
+                set(ref(database, `msg/'${PostKey}`), {
+                    username: this.tempUserName,
+                    message: this.inputMsg,
+                    time: new Date().toISOString()
+                })
+                .then(() => {
+                    // Data saved successfully!
+                })
+                .catch((error) => {
+                    // The write failed...
+                });
+                this.tempUserName = ''
+                this.inputMsg = ''
+            },
+            listenDB(){
+                //連線後監聽-每次資料庫異動都會被觸發
+                //不建議將偵聽器附加到數據庫的根目錄。
+                onValue(startRef, (snapshot) => {
+                    const data = snapshot.val();
+                    this.chartRoom = data
+                    // console.log(snapshot.numChildren()) // 這個SDK無法取得線上人數這個methods
+                })
+            }
+        },    
+        mounted() {
+            //檢測連接狀態
+            const connectedRef = ref(database, ".info/connected");
+            onValue(connectedRef, (snap) => {
+                if (snap.val() === true) {
+                    this.status = true
+                    this.listenDB()
+                } else {
+                    this.status = false
+                }
+            });
+            //如果您只需要一次數據，請用get
+        }
+    }
+    Vue.createApp(App).mount("#app")
+
+</script>
+</body>
+</html>
+<style>
+    .chartBox{
+        border: 1px solid #555;
+        margin-top: 1rem;
+        padding: .5rem;
+    }
+    .chartBox div{
+        border: 1px solid #555;
+        margin-bottom: .5rem;
+        padding: .5rem;
+    }
+    .chartBox p{
+        display: inline-flex;
+        justify-content: space-between;
+        width: 100%;
+    }
+</style>
